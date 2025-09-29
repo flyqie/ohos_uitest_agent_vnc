@@ -29,6 +29,7 @@ add_library(agent SHARED
 
 target_link_libraries(agent PRIVATE
         hilog_ndk.z
+        deviceinfo_ndk.z
         z
         native_display_manager
         ${LIBJPEG_LIB}

@@ -1,5 +1,7 @@
 #include "agent.h"
 #include "uitest.h"
+#include <deviceinfo.h>
+#include <rfb/keysym.h>
 #include <jpeglib.h>
 
 struct UiTestPort g_UiTestPort;
@@ -360,7 +362,7 @@ RetCode UiTestExtension_OnInit(struct UiTestPort port, size_t argc, char **argv)
     AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnInit: Screen Size: %dx%d", screenW, screenH);
     setServerRfbLog();
     int _argc = (int)argc;
-    g_BufferManager = init_vnc_server(screenW, screenH, 32, "HiVnc", &_argc, argv);
+    g_BufferManager = init_vnc_server(screenW, screenH, 32, OH_GetMarketName(), &_argc, argv);
     AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnInit: Bye~");
     return RETCODE_SUCCESS;
 }
