@@ -69,7 +69,7 @@ $OHOS_SDK/native/build-tools/cmake/bin/cmake -DCMAKE_TOOLCHAIN_FILE=$OHOS_SDK/na
         -D CMAKE_INSTALL_PREFIX="" \
         -D CMAKE_MAKE_PROGRAM=$OHOS_SDK/native/build-tools/cmake/bin/ninja \
         ..
-make "-j$(nproc)"
+cmake --build .
 popd
 ```
 
