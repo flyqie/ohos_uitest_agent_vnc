@@ -1,0 +1,13 @@
+prefix=/tmp/libvncserver_build_ohos/libvncserver
+exec_prefix=/tmp/libvncserver_build_ohos/libvncserver
+libdir=/tmp/libvncserver_build_ohos/libvncserver/lib
+includedir=/tmp/libvncserver_build_ohos/libvncserver/include
+
+Name: LibVNCServer
+Description: A library for easy implementation of a VNC server.
+Version: 0.9.15
+Requires:
+Requires.private:
+Libs: -L${libdir} -lvncserver
+Libs.private:  -lpthread -lz -ljpeg.a -lpng.a
+Cflags: -I${includedir}

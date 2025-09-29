@@ -1,0 +1,12 @@
+prefix=/tmp/libvncserver_build_ohos/libpng
+exec_prefix=/tmp/libvncserver_build_ohos/libpng
+libdir=/tmp/libvncserver_build_ohos/libpng/lib
+includedir=/tmp/libvncserver_build_ohos/libpng/include/libpng16
+
+Name: libpng
+Description: Loads and saves PNG files
+Version: 1.6.50
+Requires.private: zlib
+Libs: -L${libdir} -lpng16
+Libs.private: -lz -lm
+Cflags: -I${includedir}

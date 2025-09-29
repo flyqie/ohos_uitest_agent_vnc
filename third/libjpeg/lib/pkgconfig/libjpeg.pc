@@ -1,0 +1,10 @@
+prefix=/tmp/libvncserver_build_ohos/libjpeg
+exec_prefix=/tmp/libvncserver_build_ohos/libjpeg
+libdir=/tmp/libvncserver_build_ohos/libjpeg/lib
+includedir=/tmp/libvncserver_build_ohos/libjpeg/include
+
+Name: libjpeg
+Description: A SIMD-accelerated JPEG codec that provides the libjpeg API
+Version: 3.1.2
+Libs: -L${libdir} -ljpeg
+Cflags: -I${includedir}
