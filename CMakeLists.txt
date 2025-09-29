@@ -24,11 +24,13 @@ include_directories(${LIBVNCSERVER_INCLUDE})
 
 add_library(agent SHARED
         agent.c
+        uitest.c
 )
 
 target_link_libraries(agent PRIVATE
         hilog_ndk.z
         z
+        native_display_manager
         ${LIBJPEG_LIB}
         ${LIBPNG_LIB}
         ${LIBVNCSERVER_LIB}
