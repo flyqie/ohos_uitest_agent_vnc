@@ -2,8 +2,10 @@
 #define UITEST_AGENT_VNC_LIBRARY_H
 
 #include <stdio.h>
+#include <unistd.h>
 #include <hilog/log.h>
 #include <rfb/rfb.h>
+#include <rfb/keysym.h>
 #include "third/ohos/extension_c_api.h"
 
 typedef struct {
