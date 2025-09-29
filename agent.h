@@ -28,7 +28,6 @@ typedef struct {
 extern struct UiTestPort g_UiTestPort;
 extern struct LowLevelFunctions g_LowLevelFunctions;
 extern BufferManager* g_BufferManager;
-extern int screenW, screenH;
 
 // 入口函数
 RetCode UiTestExtension_OnInit(struct UiTestPort port, size_t argc, char **argv);

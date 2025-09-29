@@ -7,7 +7,6 @@
 struct UiTestPort g_UiTestPort;
 struct LowLevelFunctions g_LowLevelFunctions;
 BufferManager* g_BufferManager;
-int screenW, screenH;
 
 void AGENT_OHOS_LOG(LogLevel level, const char* fmt, ...) {
     char buffer[4096];
@@ -353,8 +352,8 @@ RetCode UiTestExtension_OnInit(struct UiTestPort port, size_t argc, char **argv)
     AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnInit: Hi~");
     g_UiTestPort = port;
     port.initLowLevelFunctions(&g_LowLevelFunctions);
-    screenW = UiTest_getScreenWidth();
-    screenH = UiTest_getScreenHeight();
+    int screenW = UiTest_getScreenWidth();
+    int screenH = UiTest_getScreenHeight();
     if (screenH <= 0 || screenW <= 0) {
         AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnInit: Get Screen Size Failed");
         return RETCODE_FAIL;
