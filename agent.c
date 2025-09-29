@@ -348,7 +348,7 @@ void screenJpegCallback(char* data, int size) {
 
 // 入口函数
 RetCode UiTestExtension_OnInit(struct UiTestPort port, size_t argc, char **argv) {
-    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnInit: START");
+    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnInit: Hi~");
     g_UiTestPort = port;
     port.initLowLevelFunctions(&g_LowLevelFunctions);
     screenW = UiTest_getScreenWidth();
@@ -361,13 +361,13 @@ RetCode UiTestExtension_OnInit(struct UiTestPort port, size_t argc, char **argv)
     setServerRfbLog();
     int _argc = (int)argc;
     g_BufferManager = init_vnc_server(screenW, screenH, 32, "HiVnc", &_argc, argv);
-    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnInit: END");
+    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnInit: Bye~");
     return RETCODE_SUCCESS;
 }
 
 // 执行函数
 RetCode UiTestExtension_OnRun() {
-    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnRun: START");
+    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnRun: Hi~");
     if (g_BufferManager == NULL) {
         AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnRun: g_BufferManager NULL??");
         return RETCODE_FAIL;
@@ -382,6 +382,6 @@ RetCode UiTestExtension_OnRun() {
     }
     sleep(2); // 等待2秒确保vnc服务器彻底停止
     cleanup_vnc_server(g_BufferManager);
-    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnRun: END");
+    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnRun: Bye~");
     return RETCODE_SUCCESS;
 }
