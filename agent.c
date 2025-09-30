@@ -244,9 +244,8 @@ static int cleanup_vnc_server(BufferManager *manager) {
 // HUMAN NOTE: OHOS相关接口只提供了 JPEG 格式的屏幕数据, 性能较差, 没办法优化...
 // AI CODE
 void screenJpegCallback(char* data, int size) {
-    if (!g_BufferManager) {
-        return;
-    }
+    if (!g_BufferManager) return;
+
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr jerr;
     cinfo.err = jpeg_std_error(&jerr);
@@ -254,101 +253,123 @@ void screenJpegCallback(char* data, int size) {
     jpeg_mem_src(&cinfo, (unsigned char*)data, size);
     jpeg_read_header(&cinfo, TRUE);
     jpeg_start_decompress(&cinfo);
-    int screenW_local = g_BufferManager->server->width;
-    int screenH_local = g_BufferManager->server->height;
-    int jpegW = (int)cinfo.output_width;
-    int jpegH = (int)cinfo.output_height;
-    int row_stride = jpegW * cinfo.output_components; // 通常为3
-    int fb_stride = screenW_local * 4;
+
+    int screenW = g_BufferManager->server->width;
+    int screenH = g_BufferManager->server->height;
+    int jpegW = cinfo.output_width;
+    int jpegH = cinfo.output_height;
+    int row_stride = jpegW * cinfo.output_components;
+    int fb_stride = screenW * 4;
+
+    // 分配 JPEG 解码缓冲
     unsigned char* buffer = (unsigned char*)malloc(row_stride);
-    int y;
+    unsigned char* curr_frame = (unsigned char*)malloc(jpegW * jpegH * cinfo.output_components);
+
+    for (int y = 0; y < jpegH; ++y) {
+        unsigned char* rowptr = buffer;
+        jpeg_read_scanlines(&cinfo, &rowptr, 1);
+        memcpy(curr_frame + y * row_stride, buffer, row_stride);
+    }
+    free(buffer);
+
+    // 初始化 last_frame
     static unsigned char* last_frame = NULL;
     static int last_w = 0, last_h = 0, last_components = 0;
+    static int first_frame = 1;  // 首次全屏标记
+
     int need_full_update = 0;
-    if (g_AgentConfig.no_diff) {
-        // 禁用差分更新, 每次全帧刷新
-        need_full_update = 1;
-    }
-    if (last_frame == NULL || last_w != jpegW || last_h != jpegH || last_components != cinfo.output_components) {
+    if (!last_frame || last_w != jpegW || last_h != jpegH || last_components != cinfo.output_components) {
         if (last_frame) free(last_frame);
         last_frame = (unsigned char*)malloc(jpegW * jpegH * cinfo.output_components);
         memset(last_frame, 0, jpegW * jpegH * cinfo.output_components);
-        last_w = jpegW;
-        last_h = jpegH;
-        last_components = cinfo.output_components;
+        last_w = jpegW; last_h = jpegH; last_components = cinfo.output_components;
         need_full_update = 1;
     }
-    int min_x = jpegW, min_y = jpegH, max_x = -1, max_y = -1;
-    unsigned char* curr_frame = (unsigned char*)malloc(jpegW * jpegH * cinfo.output_components);
-    for (y = 0; y < jpegH; ++y) {
-        unsigned char* rowptr = buffer;
-        jpeg_read_scanlines(&cinfo, &rowptr, 1);
-        memcpy(curr_frame + y * jpegW * cinfo.output_components, buffer, row_stride);
+
+    if (g_AgentConfig.no_diff || first_frame) {
+        need_full_update = 1;
     }
+
+    int min_x = 0, min_y = 0, max_x = screenW - 1, max_y = screenH - 1;
+
     if (!need_full_update) {
-        for (y = 0; y < jpegH; ++y) {
-            for (int x = 0; x < jpegW; ++x) {
-                int idx = (y * jpegW + x) * cinfo.output_components;
-                int diff = 0;
-                for (int c = 0; c < cinfo.output_components; ++c) {
-                    if (curr_frame[idx + c] != last_frame[idx + c]) {
-                        diff = 1;
-                        break;
+        // 块级差分参数
+        #define BLOCK_SIZE 16
+        int blocks_x = (jpegW + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        int blocks_y = (jpegH + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+        min_x = screenW; min_y = screenH;
+        max_x = -1; max_y = -1;
+
+        // 块级差分检测
+        for (int by = 0; by < blocks_y; ++by) {
+            for (int bx = 0; bx < blocks_x; ++bx) {
+                int block_changed = 0;
+                for (int y = 0; y < BLOCK_SIZE && by*BLOCK_SIZE + y < jpegH; ++y) {
+                    for (int x = 0; x < BLOCK_SIZE && bx*BLOCK_SIZE + x < jpegW; ++x) {
+                        int idx = ((by*BLOCK_SIZE + y) * jpegW + (bx*BLOCK_SIZE + x)) * cinfo.output_components;
+                        for (int c = 0; c < cinfo.output_components; ++c) {
+                            if (curr_frame[idx + c] != last_frame[idx + c]) {
+                                block_changed = 1;
+                                goto update_block;
+                            }
+                        }
                     }
                 }
-                if (diff) {
-                    if (x < min_x) min_x = x;
-                    if (x > max_x) max_x = x;
-                    if (y < min_y) min_y = y;
-                    if (y > max_y) max_y = y;
+update_block:
+                if (block_changed) {
+                    int start_x = bx * BLOCK_SIZE;
+                    int start_y = by * BLOCK_SIZE;
+                    int end_x = (start_x + BLOCK_SIZE > jpegW) ? jpegW : (start_x + BLOCK_SIZE);
+                    int end_y = (start_y + BLOCK_SIZE > jpegH) ? jpegH : (start_y + BLOCK_SIZE);
+
+                    if (start_x < min_x) min_x = start_x;
+                    if (start_y < min_y) min_y = start_y;
+                    if (end_x - 1 > max_x) max_x = end_x - 1;
+                    if (end_y - 1 > max_y) max_y = end_y - 1;
                 }
             }
         }
+        // 如果没有变化直接返回
         if (max_x < min_x || max_y < min_y) {
             free(curr_frame);
-            free(buffer);
             jpeg_finish_decompress(&cinfo);
             jpeg_destroy_decompress(&cinfo);
             return;
         }
-    } else {
-        // 全帧刷新，且以屏幕尺寸为准，防止只刷新JPEG区域
-        min_x = 0; min_y = 0; max_x = screenW_local - 1; max_y = screenH_local - 1;
     }
-    // 仅在有变化区域时才持有锁并写入帧缓冲
+
+    // 申请帧缓冲，一次性更新整个变化区域（首次全屏或差分）
     unsigned char* fb = (unsigned char*)request_back_vnc_buf(g_BufferManager);
-    // 先填充未被JPEG覆盖的区域为白色，防止黑块
-    for (y = 0; y < screenH_local; ++y) {
-        for (int x = 0; x < screenW_local; ++x) {
-            if (y >= jpegH || x >= jpegW) {
-                unsigned char* fb_row = &fb[y * fb_stride + x * 4];
-                fb_row[0] = 255; fb_row[1] = 255; fb_row[2] = 255; fb_row[3] = 0xFF;
+
+    // 写入帧缓冲并填充未覆盖区域
+    for (int y = 0; y < screenH; ++y) {
+        for (int x = 0; x < screenW; ++x) {
+            unsigned char* fb_row = &fb[y * fb_stride + x * 4];
+            if (y < jpegH && x < jpegW) {
+                int idx = (y * jpegW + x) * cinfo.output_components;
+                fb_row[0] = curr_frame[idx + 0];
+                fb_row[1] = curr_frame[idx + 1];
+                fb_row[2] = curr_frame[idx + 2];
+                fb_row[3] = 0xFF;
+            } else {
+                fb_row[0] = 255;
+                fb_row[1] = 255;
+                fb_row[2] = 255;
+                fb_row[3] = 0xFF;
             }
         }
     }
-    // 写入变化区域到帧缓冲（只写JPEG区域）
-    for (y = min_y; y <= max_y && y < jpegH && y < screenH_local; ++y) {
-        for (int x = min_x; x <= max_x && x < jpegW && x < screenW_local; ++x) {
-            int idx = (y * jpegW + x) * cinfo.output_components;
-            unsigned char r = curr_frame[idx + 0];
-            unsigned char g = curr_frame[idx + 1];
-            unsigned char b = curr_frame[idx + 2];
-            unsigned char* fb_row = &fb[y * fb_stride + x * 4];
-            fb_row[0] = r;
-            fb_row[1] = g;
-            fb_row[2] = b;
-            fb_row[3] = 0xFF;
-        }
-    }
-    // release_vnc_buf参数校正，防止越界
-    int rel_min_x = min_x < 0 ? 0 : min_x;
-    int rel_min_y = min_y < 0 ? 0 : min_y;
-    int rel_max_x = max_x + 1 > screenW_local ? screenW_local : max_x + 1;
-    int rel_max_y = max_y + 1 > screenH_local ? screenH_local : max_y + 1;
-    release_vnc_buf(g_BufferManager, rel_min_x, rel_min_y, rel_max_x, rel_max_y);
+
+    // release 帧缓冲一次性标记整个屏幕
+    release_vnc_buf(g_BufferManager, 0, 0, screenW, screenH);
+
+    // 更新 last_frame
     memcpy(last_frame, curr_frame, jpegW * jpegH * cinfo.output_components);
     free(curr_frame);
-    free(buffer);
+
+    first_frame = 0; // 标记首次帧已完成
+
     jpeg_finish_decompress(&cinfo);
     jpeg_destroy_decompress(&cinfo);
 }
