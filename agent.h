@@ -22,12 +22,14 @@ typedef struct {
 } BufferManager;
 
 typedef struct {
-    char serverID[256];
-} ServerCustomData;
+    int no_diff;
+    char* test;
+} AgentConfig;
 
 extern struct UiTestPort g_UiTestPort;
 extern struct LowLevelFunctions g_LowLevelFunctions;
 extern BufferManager* g_BufferManager;
+extern AgentConfig g_AgentConfig;
 
 // 入口函数
 RetCode UiTestExtension_OnInit(struct UiTestPort port, size_t argc, char **argv);

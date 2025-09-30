@@ -8,6 +8,8 @@ struct UiTestPort g_UiTestPort;
 struct LowLevelFunctions g_LowLevelFunctions;
 BufferManager* g_BufferManager;
 
+AgentConfig g_AgentConfig = {};
+
 void AGENT_OHOS_LOG(LogLevel level, const char* fmt, ...) {
     char buffer[4096];
 
@@ -37,7 +39,7 @@ void rfbServerLogErrToString(const char *format, ...) {
     AGENT_OHOS_LOG(LOG_ERROR, buffer);
 }
 
-void setServerRfbLog() {
+static void setServerRfbLog() {
     rfbLog = rfbServerLogInfoToString;
     rfbErr = rfbServerLogErrToString;
 }
@@ -49,7 +51,7 @@ void setServerRfbLog() {
  * @param manager
  * @return 双缓冲区内存地址
  */
-char *request_back_vnc_buf(BufferManager *manager) {
+static char *request_back_vnc_buf(BufferManager *manager) {
     pthread_mutex_lock(&manager->backBufferLock);
     pthread_mutex_lock(&manager->backBufferFuncLock);
     char *buffer = manager->backBuffer;
@@ -68,7 +70,7 @@ char *request_back_vnc_buf(BufferManager *manager) {
  * @param y2 需要发送到客户端修改的终止宽度
  * @return
  */
-int release_vnc_buf(BufferManager *manager, int w1, int y1, int w2, int y2) {
+static int release_vnc_buf(BufferManager *manager, int w1, int y1, int w2, int y2) {
     pthread_rwlock_wrlock(&manager->frontBufferLock);
     pthread_mutex_lock(&manager->backBufferFuncLock);
     char *temp = manager->frontBuffer;
@@ -89,7 +91,7 @@ int release_vnc_buf(BufferManager *manager, int w1, int y1, int w2, int y2) {
  * @param manager
  * @return
  */
-int stop_vnc_server(BufferManager *manager) {
+static int stop_vnc_server(BufferManager *manager) {
     manager->stop_vnc_server_flag = 1;
     return 0;
 }
@@ -158,7 +160,7 @@ void ptr_event(int buttonMask, int x, int y, rfbClientPtr cl) {
  * @param argv
  * @return
  */
-BufferManager *
+static BufferManager *
 init_vnc_server(const int width, const int height, const int bits_per_pixel, const char *desktopName, int* argc, char** argv) {
     BufferManager *manager = calloc(1, sizeof(BufferManager));
     manager->bufferSize = width * height * (bits_per_pixel / 8);
@@ -189,7 +191,7 @@ init_vnc_server(const int width, const int height, const int bits_per_pixel, con
  * @param manager
  * @return
  */
-int run_vnc_server(BufferManager *manager) {
+static int run_vnc_server(BufferManager *manager) {
     int hasRLock;
     manager->stop_vnc_server_flag = 0;
     manager->stopped_vnc_server_flag = 0;
@@ -225,7 +227,7 @@ int run_vnc_server(BufferManager *manager) {
  * @param manager
  * @return
  */
-int cleanup_vnc_server(BufferManager *manager) {
+static int cleanup_vnc_server(BufferManager *manager) {
     if (manager->stop_vnc_server_flag != 1 || manager->stopped_vnc_server_flag != 1) {
         return -1;
     }
@@ -263,6 +265,10 @@ void screenJpegCallback(char* data, int size) {
     static unsigned char* last_frame = NULL;
     static int last_w = 0, last_h = 0, last_components = 0;
     int need_full_update = 0;
+    if (g_AgentConfig.no_diff) {
+        // 禁用差分更新, 每次全帧刷新
+        need_full_update = 1;
+    }
     if (last_frame == NULL || last_w != jpegW || last_h != jpegH || last_components != cinfo.output_components) {
         if (last_frame) free(last_frame);
         last_frame = (unsigned char*)malloc(jpegW * jpegH * cinfo.output_components);
@@ -347,6 +353,29 @@ void screenJpegCallback(char* data, int size) {
     jpeg_destroy_decompress(&cinfo);
 }
 
+static int processArguments(const int *argc, char *argv[]) {
+    if (!argc) {
+        return TRUE;
+    }
+
+    for (int i = 1; i < *argc;) {
+        if (strcmp(argv[i], "-nodiff") == 0) {
+            AGENT_OHOS_LOG(LOG_INFO, "processArguments: -nodiff");
+            g_AgentConfig.no_diff = 1;
+        } else if (strcmp(argv[i], "-argvtest") == 0) {
+            if (i + 1 >= *argc) {
+                return FALSE;
+            }
+            g_AgentConfig.test = strdup(argv[++i]);
+        } else {
+            // 未知参数, 不处理, 可能是给libvncserver的参数
+        }
+        i++;
+    }
+
+    return TRUE;
+}
+
 // 入口函数
 RetCode UiTestExtension_OnInit(struct UiTestPort port, size_t argc, char **argv) {
     AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnInit: Hi~");
@@ -361,6 +390,10 @@ RetCode UiTestExtension_OnInit(struct UiTestPort port, size_t argc, char **argv)
     AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnInit: Screen Size: %dx%d", screenW, screenH);
     setServerRfbLog();
     int _argc = (int)argc;
+    if (processArguments(&_argc, argv) == FALSE) {
+        AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnInit: Process Arguments Failed");
+        return RETCODE_FAIL;
+    }
     g_BufferManager = init_vnc_server(screenW, screenH, 32, OH_GetMarketName(), &_argc, argv);
     AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnInit: Bye~");
     return RETCODE_SUCCESS;
