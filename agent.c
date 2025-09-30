@@ -115,35 +115,31 @@ void ptr_event(int buttonMask, int x, int y, rfbClientPtr cl) {
     //AGENT_OHOS_LOG(LOG_INFO, "ptr_event: buttonMask=0x%02x, x=%d, y=%d", buttonMask, x, y);
     static int prevMask = 0;
     static int prevX = -1, prevY = -1;
-    enum ActionStage stage = ActionStage_NONE;
-    // 检测鼠标移动
-    if (x != prevX || y != prevY) {
-        stage = ActionStage_MOVE;
-    }
-    // 左键按下
-    if ((buttonMask & 1) && !(prevMask & 1)) {
-        stage = ActionStage_DOWN;
-    }
-    // 左键抬起
-    else if (!(buttonMask & 1) && (prevMask & 1)) {
-        stage = ActionStage_UP;
-    }
-    // 滚轮上按下
-    if ((buttonMask & 8) && !(prevMask & 8)) {
-        stage = ActionStage_AXIS_UP;
-    }
-    // 滚轮下按下
-    else if ((buttonMask & 16) && !(prevMask & 16)) {
-        stage = ActionStage_AXIS_DOWN;
-    }
-    // 滚轮释放
-    else if (!(buttonMask & (8|16)) && (prevMask & (8|16))) {
-        stage = ActionStage_AXIS_STOP;
-    }
-    prevMask = buttonMask;
-    prevX = x; prevY = y;
 
-    UiTest_InjectionPtr(stage, x, y);
+    if ((buttonMask & 1) && !(prevMask & 1)) {
+        UiTest_InjectionPtr(ActionStage_DOWN, x, y);
+    }
+    if (!(buttonMask & 1) && (prevMask & 1)) {
+        UiTest_InjectionPtr(ActionStage_UP, x, y);
+    }
+
+    if ((buttonMask & 8) && !(prevMask & 8)) {
+        UiTest_InjectionPtr(ActionStage_AXIS_UP, x, y);
+    }
+    if ((buttonMask & 16) && !(prevMask & 16)) {
+        UiTest_InjectionPtr(ActionStage_AXIS_DOWN, x, y);
+    }
+    if (!(buttonMask & (8|16)) && (prevMask & (8|16))) {
+        UiTest_InjectionPtr(ActionStage_AXIS_STOP, x, y);
+    }
+
+    if (x != prevX || y != prevY) {
+        UiTest_InjectionPtr(ActionStage_MOVE, x, y);
+    }
+
+    prevMask = buttonMask;
+    prevX = x;
+    prevY = y;
 }
 
 /**
