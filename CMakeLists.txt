@@ -14,6 +14,7 @@ include_directories(${LIBJPEG_INCLUDE})
 # libpng
 set(LIBPNG_ROOT "${CMAKE_SOURCE_DIR}/third/libpng")
 set(LIBPNG_INCLUDE "${LIBPNG_ROOT}/include")
+#set(LIBPNG_LIB "${LIBPNG_ROOT}/lib/libpng.z.so")
 set(LIBPNG_LIB "${LIBPNG_ROOT}/lib/libpng.a")
 include_directories(${LIBPNG_INCLUDE})
 # Libvncserver
