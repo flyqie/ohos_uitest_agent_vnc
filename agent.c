@@ -3,6 +3,7 @@
 #include <deviceinfo.h>
 #include <rfb/keysym.h>
 #include <jpeglib.h>
+#include <png.h>
 
 struct UiTestPort g_UiTestPort;
 struct LowLevelFunctions g_LowLevelFunctions;
@@ -11,8 +12,12 @@ BufferManager* g_BufferManager;
 AgentConfig g_AgentConfig = {};
 
 void AGENT_OHOS_LOG(LogLevel level, const char* fmt, ...) {
-    char buffer[4096];
+    // 如果是调试日志且开启了调试模式, 则提升为信息日志
+    if (g_AgentConfig.agent_debug && level == LOG_DEBUG) {
+        level = LOG_INFO;
+    }
 
+    char buffer[4096];
     va_list args;
     va_start(args, fmt);
     vsnprintf(buffer, sizeof(buffer), fmt, args);
@@ -98,7 +103,7 @@ static int stop_vnc_server(BufferManager *manager) {
 
 static rfbBool ctrl_down = FALSE;
 void key_event(rfbBool down, rfbKeySym key, rfbClientPtr cl) {
-    AGENT_OHOS_LOG(LOG_INFO, "key_event: down=%d, key=0x%08x", down, key);
+    AGENT_OHOS_LOG(LOG_DEBUG, "key_event: down=%d, key=0x%08x", down, key);
 
     if (key == XK_Control_L || key == XK_Control_R) {
         ctrl_down = down;
@@ -112,7 +117,7 @@ void key_event(rfbBool down, rfbKeySym key, rfbClientPtr cl) {
 }
 
 void ptr_event(int buttonMask, int x, int y, rfbClientPtr cl) {
-    //AGENT_OHOS_LOG(LOG_INFO, "ptr_event: buttonMask=0x%02x, x=%d, y=%d", buttonMask, x, y);
+    AGENT_OHOS_LOG(LOG_DEBUG, "ptr_event: buttonMask=0x%02x, x=%d, y=%d", buttonMask, x, y);
     static int prevMask = 0;
     static int prevX = -1, prevY = -1;
 
@@ -349,6 +354,131 @@ void screenJpegCallback(char* data, int size) {
     jpeg_destroy_decompress(&cinfo);
 }
 
+// HUMAN NOTE: OHOS相关兼容接口只提供了 PNG 格式的屏幕数据, 性能较差, 没办法优化...
+// AI CODE
+void screenPngCallback(char* data, int size) {
+    if (!g_BufferManager) return;
+
+    int screenW_local = g_BufferManager->server->width;
+    int screenH_local = g_BufferManager->server->height;
+
+    // 使用 libpng 解码 PNG 内存数据
+    png_image image;
+    memset(&image, 0, sizeof(image));
+    image.version = PNG_IMAGE_VERSION;
+
+    if (!png_image_begin_read_from_memory(&image, data, size)) {
+        AGENT_OHOS_LOG(LOG_ERROR, LOG_TAG, "PNG decode failed");
+        return;
+    }
+
+    image.format = PNG_FORMAT_RGB; // 解码成 RGB
+    int pngW = image.width;
+    int pngH = image.height;
+    int components = 3;
+    png_bytep curr_frame = (png_bytep)malloc(PNG_IMAGE_SIZE(image));
+    if (!curr_frame) {
+        png_image_free(&image);
+        return;
+    }
+
+    if (!png_image_finish_read(&image, NULL, curr_frame, 0, NULL)) {
+        AGENT_OHOS_LOG(LOG_ERROR, LOG_TAG, "PNG finish read failed");
+        free(curr_frame);
+        png_image_free(&image);
+        return;
+    }
+
+    // 差分更新逻辑
+    static png_bytep last_frame = NULL;
+    static int last_w = 0, last_h = 0, last_components = 0;
+    int need_full_update = 0;
+
+    if (g_AgentConfig.no_diff) need_full_update = 1;
+
+    if (!last_frame || last_w != pngW || last_h != pngH || last_components != components) {
+        if (last_frame) free(last_frame);
+        last_frame = (png_bytep)malloc(pngW * pngH * components);
+        memset(last_frame, 0, pngW * pngH * components);
+        last_w = pngW;
+        last_h = pngH;
+        last_components = components;
+        need_full_update = 1;
+    }
+
+    int min_x = pngW, min_y = pngH, max_x = -1, max_y = -1;
+
+    if (!need_full_update) {
+        for (int y = 0; y < pngH; ++y) {
+            for (int x = 0; x < pngW; ++x) {
+                int idx = (y * pngW + x) * components;
+                int diff = 0;
+                for (int c = 0; c < components; ++c) {
+                    if (curr_frame[idx + c] != last_frame[idx + c]) {
+                        diff = 1;
+                        break;
+                    }
+                }
+                if (diff) {
+                    if (x < min_x) min_x = x;
+                    if (x > max_x) max_x = x;
+                    if (y < min_y) min_y = y;
+                    if (y > max_y) max_y = y;
+                }
+            }
+        }
+
+        if (max_x < min_x || max_y < min_y) {
+            free(curr_frame);
+            png_image_free(&image);
+            return; // 没有变化
+        }
+    } else {
+        min_x = 0; min_y = 0;
+        max_x = screenW_local - 1;
+        max_y = screenH_local - 1;
+    }
+
+    // 写入帧缓冲
+    unsigned char* fb = (unsigned char*)request_back_vnc_buf(g_BufferManager);
+    int fb_stride = screenW_local * 4;
+
+    // 填充未被PNG覆盖的区域为白色
+    for (int y = 0; y < screenH_local; ++y) {
+        for (int x = 0; x < screenW_local; ++x) {
+            if (y >= pngH || x >= pngW) {
+                unsigned char* fb_row = &fb[y * fb_stride + x * 4];
+                fb_row[0] = 255; fb_row[1] = 255; fb_row[2] = 255; fb_row[3] = 0xFF;
+            }
+        }
+    }
+
+    // 写入变化区域
+    for (int y = min_y; y <= max_y && y < pngH && y < screenH_local; ++y) {
+        for (int x = min_x; x <= max_x && x < pngW && x < screenW_local; ++x) {
+            int idx = (y * pngW + x) * components;
+            unsigned char* fb_row = &fb[y * fb_stride + x * 4];
+            fb_row[0] = curr_frame[idx + 0];
+            fb_row[1] = curr_frame[idx + 1];
+            fb_row[2] = curr_frame[idx + 2];
+            fb_row[3] = 0xFF;
+        }
+    }
+
+    // release_vnc_buf 参数校正
+    int rel_min_x = min_x < 0 ? 0 : min_x;
+    int rel_min_y = min_y < 0 ? 0 : min_y;
+    int rel_max_x = max_x + 1 > screenW_local ? screenW_local : max_x + 1;
+    int rel_max_y = max_y + 1 > screenH_local ? screenH_local : max_y + 1;
+    release_vnc_buf(g_BufferManager, rel_min_x, rel_min_y, rel_max_x, rel_max_y);
+
+    // 更新 last_frame
+    memcpy(last_frame, curr_frame, pngW * pngH * components);
+
+    free(curr_frame);
+    png_image_free(&image);
+}
+
 static int processArguments(const int *argc, char *argv[]) {
     if (!argc) {
         return TRUE;
@@ -358,11 +488,18 @@ static int processArguments(const int *argc, char *argv[]) {
         if (strcmp(argv[i], "-nodiff") == 0) {
             AGENT_OHOS_LOG(LOG_INFO, "processArguments: -nodiff");
             g_AgentConfig.no_diff = 1;
-        } else if (strcmp(argv[i], "-argvtest") == 0) {
+        }else if (strcmp(argv[i], "-pngcap") == 0) {
+            AGENT_OHOS_LOG(LOG_INFO, "processArguments: -pngcap");
+            g_AgentConfig.png_cap = 1;
+        }else if (strcmp(argv[i], "-agentdebug") == 0) {
+            AGENT_OHOS_LOG(LOG_INFO, "processArguments: -agentdebug");
+            g_AgentConfig.agent_debug = 1;
+        } else if (strcmp(argv[i], "-capfps") == 0) {
+            AGENT_OHOS_LOG(LOG_INFO, "processArguments: -capfps");
             if (i + 1 >= *argc) {
                 return FALSE;
             }
-            g_AgentConfig.test = strdup(argv[++i]);
+            g_AgentConfig.cap_fps = atoi(argv[++i]);
         } else {
             // 未知参数, 不处理, 可能是给libvncserver的参数
         }
@@ -390,6 +527,10 @@ RetCode UiTestExtension_OnInit(struct UiTestPort port, size_t argc, char **argv)
         AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnInit: Process Arguments Failed");
         return RETCODE_FAIL;
     }
+    if (g_AgentConfig.cap_fps <= 0) {
+        // 默认30fps
+        g_AgentConfig.cap_fps = 30;
+    }
     g_BufferManager = init_vnc_server(screenW, screenH, 32, OH_GetMarketName(), &_argc, argv);
     AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnInit: Bye~");
     return RETCODE_SUCCESS;
@@ -402,7 +543,14 @@ RetCode UiTestExtension_OnRun() {
         AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnRun: g_BufferManager NULL??");
         return RETCODE_FAIL;
     }
-    if (UiTest_StartScreenCopy(screenJpegCallback) != 0) {
+    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnRun: max fps: %d", g_AgentConfig.cap_fps);
+    int copy_ret;
+    if (g_AgentConfig.png_cap) {
+        copy_ret = UiTest_StartScreenCopy(screenPngCallback, 1, g_AgentConfig.cap_fps);
+    } else {
+        copy_ret = UiTest_StartScreenCopy(screenJpegCallback, 0, g_AgentConfig.cap_fps);
+    }
+    if (copy_ret != 0) {
         AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnRun: Start Screen Copy Failed");
         return RETCODE_FAIL;
     }
@@ -410,7 +558,8 @@ RetCode UiTestExtension_OnRun() {
     if (UiTest_StopScreenCopy() != 0) {
         AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnRun: Stop Screen Copy Failed");
     }
-    sleep(2); // 等待2秒确保vnc服务器彻底停止
+    // 等待2秒确保vnc服务器彻底停止
+    sleep(2);
     cleanup_vnc_server(g_BufferManager);
     AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnRun: Bye~");
     return RETCODE_SUCCESS;

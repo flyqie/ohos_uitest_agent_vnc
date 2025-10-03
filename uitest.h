@@ -19,7 +19,7 @@ enum ActionStage : uint8_t {
 
 int UiTest_getScreenWidth();
 int UiTest_getScreenHeight();
-int UiTest_StartScreenCopy(ScreenCopyCallback cb);
+int UiTest_StartScreenCopy(ScreenCopyCallback cb, int mode, int fps);
 int UiTest_StopScreenCopy();
 int UiTest_InjectionPtr(enum ActionStage stage, int x, int y);
 

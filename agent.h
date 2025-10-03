@@ -23,7 +23,9 @@ typedef struct {
 
 typedef struct {
     int no_diff;
-    char* test;
+    int png_cap;
+    int cap_fps;
+    int agent_debug;
 } AgentConfig;
 
 extern struct UiTestPort g_UiTestPort;
