@@ -13,8 +13,13 @@ AgentConfig g_AgentConfig = {};
 
 void AGENT_OHOS_LOG(LogLevel level, const char* fmt, ...) {
     // 如果是调试日志且开启了调试模式, 则提升为信息日志
-    if (g_AgentConfig.agent_debug && level == LOG_DEBUG) {
-        level = LOG_INFO;
+    // DEBUG日志在正常设备通过OH_LOG_Print打印并查看略显复杂
+    if (level == LOG_DEBUG) {
+        if (g_AgentConfig.agent_debug) {
+            level = LOG_INFO;
+        } else {
+            return;
+        }
     }
 
     char buffer[4096];
