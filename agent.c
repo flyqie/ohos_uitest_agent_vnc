@@ -108,21 +108,21 @@ static int stop_vnc_server(BufferManager *manager) {
 
 static rfbBool ctrl_down = FALSE;
 void key_event(rfbBool down, rfbKeySym key, rfbClientPtr cl) {
-    AGENT_OHOS_LOG(LOG_DEBUG, "key_event: down=%d, key=0x%08x", down, key);
+    AGENT_OHOS_LOG(LOG_DEBUG, "%s: down=%d, key=0x%08x", __func__, down, key);
 
     if (key == XK_Control_L || key == XK_Control_R) {
         ctrl_down = down;
         return;
     }
     if (down && ctrl_down && (key == XK_q || key == XK_Q)) {
-        AGENT_OHOS_LOG(LOG_INFO, "key_event: Ctrl+Q detected! Stop Agent...");
+        AGENT_OHOS_LOG(LOG_INFO, "%s: Ctrl+Q detected! Stop Agent...", __func__);
         stop_vnc_server(g_BufferManager);
         return;
     }
 }
 
 void ptr_event(int buttonMask, int x, int y, rfbClientPtr cl) {
-    AGENT_OHOS_LOG(LOG_DEBUG, "ptr_event: buttonMask=0x%02x, x=%d, y=%d", buttonMask, x, y);
+    AGENT_OHOS_LOG(LOG_DEBUG, "%s: buttonMask=0x%02x, x=%d, y=%d", __func__, buttonMask, x, y);
     static int prevMask = 0;
     static int prevX = -1, prevY = -1;
 
@@ -373,7 +373,7 @@ void screenPngCallback(char* data, int size) {
     image.version = PNG_IMAGE_VERSION;
 
     if (!png_image_begin_read_from_memory(&image, data, size)) {
-        AGENT_OHOS_LOG(LOG_ERROR, "PNG decode failed");
+        AGENT_OHOS_LOG(LOG_ERROR, "%s: PNG decode failed(%s)", __func__, image.message);
         return;
     }
 
@@ -388,7 +388,7 @@ void screenPngCallback(char* data, int size) {
     }
 
     if (!png_image_finish_read(&image, NULL, curr_frame, 0, NULL)) {
-        AGENT_OHOS_LOG(LOG_ERROR, "PNG finish read failed");
+        AGENT_OHOS_LOG(LOG_ERROR, "%s: PNG finish read failed(%s)", __func__, image.message);
         free(curr_frame);
         png_image_free(&image);
         return;
@@ -491,16 +491,16 @@ static int processArguments(const int *argc, char *argv[]) {
 
     for (int i = 1; i < *argc;) {
         if (strcmp(argv[i], "-nodiff") == 0) {
-            AGENT_OHOS_LOG(LOG_INFO, "processArguments: -nodiff");
+            AGENT_OHOS_LOG(LOG_INFO, "%s: -nodiff", __func__);
             g_AgentConfig.no_diff = 1;
         }else if (strcmp(argv[i], "-pngcap") == 0) {
-            AGENT_OHOS_LOG(LOG_INFO, "processArguments: -pngcap");
+            AGENT_OHOS_LOG(LOG_INFO, "%s: -pngcap", __func__);
             g_AgentConfig.png_cap = 1;
         }else if (strcmp(argv[i], "-agentdebug") == 0) {
-            AGENT_OHOS_LOG(LOG_INFO, "processArguments: -agentdebug");
+            AGENT_OHOS_LOG(LOG_INFO, "%s: -agentdebug", __func__);
             g_AgentConfig.agent_debug = 1;
         } else if (strcmp(argv[i], "-capfps") == 0) {
-            AGENT_OHOS_LOG(LOG_INFO, "processArguments: -capfps");
+            AGENT_OHOS_LOG(LOG_INFO, "%s: -capfps", __func__);
             if (i + 1 >= *argc) {
                 return FALSE;
             }
@@ -516,20 +516,20 @@ static int processArguments(const int *argc, char *argv[]) {
 
 // 入口函数
 RetCode UiTestExtension_OnInit(struct UiTestPort port, size_t argc, char **argv) {
-    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnInit: Hi~");
+    AGENT_OHOS_LOG(LOG_INFO, "%s: Hi~", __func__);
     g_UiTestPort = port;
     port.initLowLevelFunctions(&g_LowLevelFunctions);
     int screenW = UiTest_getScreenWidth();
     int screenH = UiTest_getScreenHeight();
     if (screenH <= 0 || screenW <= 0) {
-        AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnInit: Get Screen Size Failed");
+        AGENT_OHOS_LOG(LOG_FATAL, "%s: Get Screen Size Failed", __func__);
         return RETCODE_FAIL;
     }
-    AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnInit: Screen Size: %dx%d", screenW, screenH);
+    AGENT_OHOS_LOG(LOG_FATAL, "%s: Screen Size: %dx%d", __func__, screenW, screenH);
     setServerRfbLog();
     int _argc = (int)argc;
     if (processArguments(&_argc, argv) == FALSE) {
-        AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnInit: Process Arguments Failed");
+        AGENT_OHOS_LOG(LOG_FATAL, "%s: Process Arguments Failed", __func__);
         return RETCODE_FAIL;
     }
     if (g_AgentConfig.cap_fps <= 0) {
@@ -537,18 +537,18 @@ RetCode UiTestExtension_OnInit(struct UiTestPort port, size_t argc, char **argv)
         g_AgentConfig.cap_fps = 30;
     }
     g_BufferManager = init_vnc_server(screenW, screenH, 32, OH_GetMarketName(), &_argc, argv);
-    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnInit: Bye~");
+    AGENT_OHOS_LOG(LOG_INFO, "%s: Bye~", __func__);
     return RETCODE_SUCCESS;
 }
 
 // 执行函数
 RetCode UiTestExtension_OnRun() {
-    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnRun: Hi~");
+    AGENT_OHOS_LOG(LOG_INFO, "%s: Hi~", __func__);
     if (g_BufferManager == NULL) {
-        AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnRun: g_BufferManager NULL??");
+        AGENT_OHOS_LOG(LOG_FATAL, "%s: g_BufferManager NULL??", __func__);
         return RETCODE_FAIL;
     }
-    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnRun: max fps: %d", g_AgentConfig.cap_fps);
+    AGENT_OHOS_LOG(LOG_INFO, "%s: max fps: %d", __func__, g_AgentConfig.cap_fps);
     int copy_ret;
     if (g_AgentConfig.png_cap) {
         copy_ret = UiTest_StartScreenCopy(screenPngCallback, 1, g_AgentConfig.cap_fps);
@@ -556,16 +556,16 @@ RetCode UiTestExtension_OnRun() {
         copy_ret = UiTest_StartScreenCopy(screenJpegCallback, 0, g_AgentConfig.cap_fps);
     }
     if (copy_ret != 0) {
-        AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnRun: Start Screen Copy Failed");
+        AGENT_OHOS_LOG(LOG_FATAL, "%s: Start Screen Copy Failed", __func__);
         return RETCODE_FAIL;
     }
     run_vnc_server(g_BufferManager);
     if (UiTest_StopScreenCopy() != 0) {
-        AGENT_OHOS_LOG(LOG_FATAL, "UiTestExtension_OnRun: Stop Screen Copy Failed");
+        AGENT_OHOS_LOG(LOG_FATAL, "%s: Stop Screen Copy Failed", __func__);
     }
     // 等待2秒确保vnc服务器彻底停止
     sleep(2);
     cleanup_vnc_server(g_BufferManager);
-    AGENT_OHOS_LOG(LOG_INFO, "UiTestExtension_OnRun: Bye~");
+    AGENT_OHOS_LOG(LOG_INFO, "%s: Bye~", __func__);
     return RETCODE_SUCCESS;
 }

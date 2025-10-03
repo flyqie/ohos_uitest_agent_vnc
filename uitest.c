@@ -40,9 +40,9 @@ void UiTest_onScreenCopy(struct Text bytes) {
     int64_t elapsed_us = now_us - last_us;
     int64_t frame_interval_us = 1000000 / g_fps;
     int64_t sleep_us = frame_interval_us - elapsed_us;
-    AGENT_OHOS_LOG(LOG_DEBUG, "UiTest_onScreenCopy: frame time %.3f ms, sleep %.3f ms", (double)elapsed_us / 1000.0, (double)sleep_us / 1000.0);
+    AGENT_OHOS_LOG(LOG_DEBUG, "%s: frame time %.3f ms, sleep %.3f ms", __func__, (double)elapsed_us / 1000.0, (double)sleep_us / 1000.0);
     if (elapsed_us < frame_interval_us) {
-        AGENT_OHOS_LOG(LOG_DEBUG, "elapsed_us < frame_interval_us, skip frame");
+        AGENT_OHOS_LOG(LOG_DEBUG, "%s: elapsed_us < frame_interval_us, skip frame", __func__);
         return;
     }
     last_us = now_us;
@@ -60,20 +60,20 @@ static void UiTest_CreateDriver() {
     struct ReceiveBuffer output = { outputData, sizeof(outputData), &outputSize };
     int32_t fatalError = 0;
     g_LowLevelFunctions.callThroughMessage(input, output, &fatalError);
-    AGENT_OHOS_LOG(LOG_INFO, "UiTest_CreateDriver: %s", output.data);
+    AGENT_OHOS_LOG(LOG_INFO, "%s: %s", __func__, output.data);
 }
 
 void UiTest_ScreenCopyPNGTask() {
     // 20MB大缓冲区
     char *png_buffer = malloc(1024 * 1024 * 20);
     if (!png_buffer) {
-        AGENT_OHOS_LOG(LOG_ERROR, "ScreenCopyPNGTask: png_buffer malloc failed");
+        AGENT_OHOS_LOG(LOG_ERROR, "%s: png_buffer malloc failed", __func__);
         g_screenCopyPNGThreadRun = 0;
         return;
     }
 
     UiTest_CreateDriver();
-    AGENT_OHOS_LOG(LOG_INFO, "ScreenCopyPNGTask: Start");
+    AGENT_OHOS_LOG(LOG_INFO, "%s: Start", __func__);
 
     const long frame_interval_us = 1000000 / g_fps;
 
@@ -83,7 +83,7 @@ void UiTest_ScreenCopyPNGTask() {
 
         int fd = open("/data/local/tmp/uitest_agent_vnc_cap.png", O_RDWR | O_CREAT, 0666);
         if (fd < 0) {
-            AGENT_OHOS_LOG(LOG_ERROR, "ScreenCopyPNGTask: open file failed");
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: open file failed", __func__);
             break;
         }
         char buffer[512] = {};
@@ -101,17 +101,17 @@ void UiTest_ScreenCopyPNGTask() {
         close(fd);
         fd = open("/data/local/tmp/uitest_agent_vnc_cap.png", O_RDONLY);
         if (fd < 0) {
-            AGENT_OHOS_LOG(LOG_ERROR, "ScreenCopyPNGTask: reopen failed (%s)(%s)", strerror(errno), output.data);
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: reopen failed (%s)(%s)", __func__, strerror(errno), output.data);
             break;
         }
         struct stat st;
         if (fstat(fd, &st) != 0) {
-            AGENT_OHOS_LOG(LOG_ERROR, "ScreenCopyPNGTask: fstat failed (%s)(%s)", strerror(errno), output.data);
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: fstat failed (%s)(%s)", __func__, strerror(errno), output.data);
             close(fd);
             break;
         }
         if (st.st_size <= 2) {
-            AGENT_OHOS_LOG(LOG_ERROR, "ScreenCopyPNGTask: st_size <= 2 (%s)", output.data);
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: st_size <= 2 (%s)", __func__, output.data);
             close(fd);
             break;
         }
@@ -119,10 +119,10 @@ void UiTest_ScreenCopyPNGTask() {
         ssize_t n = read(fd, png_buffer, st.st_size);
         close(fd);
         if (n != st.st_size) {
-            AGENT_OHOS_LOG(LOG_ERROR, "ScreenCopyPNGTask: read n != st.st_size");
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: read n != st.st_size", __func__);
             break;
         }
-        AGENT_OHOS_LOG(LOG_DEBUG, "Read screenshot: %zd bytes", n);
+        AGENT_OHOS_LOG(LOG_DEBUG, "%s: Read screenshot: %zd bytes", __func__, n);
         if (g_screenCopyCallback != NULL) {
             g_screenCopyCallback(png_buffer, (int)n);
         }
@@ -130,20 +130,20 @@ void UiTest_ScreenCopyPNGTask() {
         clock_gettime(CLOCK_MONOTONIC, &end);
         long elapsed_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;
         long sleep_us = frame_interval_us - elapsed_us;
-        AGENT_OHOS_LOG(LOG_DEBUG, "ScreenCopyPNGTask: frame time %.3f ms, sleep %.3f ms", (double)elapsed_us / 1000.0, (double)sleep_us / 1000.0);
+        AGENT_OHOS_LOG(LOG_DEBUG, "%s: frame time %.3f ms, sleep %.3f ms", __func__, (double)elapsed_us / 1000.0, (double)sleep_us / 1000.0);
         if (sleep_us > 0) {
             usleep(sleep_us);
         }
     }
 
-    AGENT_OHOS_LOG(LOG_INFO, "ScreenCopyPNGTask: Stop");
+    AGENT_OHOS_LOG(LOG_INFO, "%s: Stop", __func__);
     free(png_buffer);
     g_screenCopyPNGThreadRun = 0;
 }
 
 int UiTest_StartScreenCopy(ScreenCopyCallback callback, int mode, int fps) {
     if (callback == NULL) {
-        AGENT_OHOS_LOG(LOG_ERROR, "UiTest_StartScreenCopy: callback is nullptr");
+        AGENT_OHOS_LOG(LOG_ERROR, "%s: callback is nullptr", __func__);
         return -1;
     }
     g_screenCopyCallback = callback;
@@ -153,13 +153,13 @@ int UiTest_StartScreenCopy(ScreenCopyCallback callback, int mode, int fps) {
     if (mode == 1) {
         // PNG模式
         if (g_screenCopyPNGThreadRun == 1) {
-            AGENT_OHOS_LOG(LOG_ERROR, "UiTest_StartScreenCopy: PNG Thread already running");
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: PNG Thread already running", __func__);
             return -2;
         }
         g_screenCopyPNGThreadRun = 1;
         pthread_t thread;
         if (pthread_create(&thread, NULL, (void* (*)(void*))UiTest_ScreenCopyPNGTask, NULL) != 0) {
-            AGENT_OHOS_LOG(LOG_ERROR, "UiTest_StartScreenCopy: Create PNG Thread failed");
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: Create PNG Thread failed", __func__);
             g_screenCopyPNGThreadRun = 0;
             return -3;
         }
@@ -167,7 +167,7 @@ int UiTest_StartScreenCopy(ScreenCopyCallback callback, int mode, int fps) {
         return 0;
     }
     if (g_LowLevelFunctions.startCapture == NULL) {
-        AGENT_OHOS_LOG(LOG_ERROR, "UiTest_StartScreenCopy: g_LowLevelFunctions is nullptr");
+        AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions is nullptr", __func__);
         return -1;
     }
 
@@ -188,7 +188,7 @@ int UiTest_StopScreenCopy() {
     }
 
     if (g_LowLevelFunctions.startCapture == NULL) {
-        AGENT_OHOS_LOG(LOG_ERROR, "UiTest_StopScreenCopy: g_LowLevelFunctions is nullptr");
+        AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions is nullptr", __func__);
         return -1;
     }
 
@@ -203,7 +203,7 @@ int UiTest_StopScreenCopy() {
 
 int UiTest_InjectionPtr(enum ActionStage stage, int x, int y) {
     if (g_LowLevelFunctions.atomicTouch == NULL) {
-        AGENT_OHOS_LOG(LOG_ERROR, "UiTest_InjectionPtr: g_LowLevelFunctions is nullptr");
+        AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions is nullptr", __func__);
         return -1;
     }
     if (g_LowLevelFunctions.atomicTouch(stage, x, y) == RETCODE_SUCCESS) {
