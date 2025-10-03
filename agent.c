@@ -373,7 +373,7 @@ void screenPngCallback(char* data, int size) {
     image.version = PNG_IMAGE_VERSION;
 
     if (!png_image_begin_read_from_memory(&image, data, size)) {
-        AGENT_OHOS_LOG(LOG_ERROR, LOG_TAG, "PNG decode failed");
+        AGENT_OHOS_LOG(LOG_ERROR, "PNG decode failed");
         return;
     }
 
@@ -388,7 +388,7 @@ void screenPngCallback(char* data, int size) {
     }
 
     if (!png_image_finish_read(&image, NULL, curr_frame, 0, NULL)) {
-        AGENT_OHOS_LOG(LOG_ERROR, LOG_TAG, "PNG finish read failed");
+        AGENT_OHOS_LOG(LOG_ERROR, "PNG finish read failed");
         free(curr_frame);
         png_image_free(&image);
         return;

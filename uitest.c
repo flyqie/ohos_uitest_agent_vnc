@@ -42,7 +42,7 @@ void UiTest_onScreenCopy(struct Text bytes) {
     int64_t sleep_us = frame_interval_us - elapsed_us;
     AGENT_OHOS_LOG(LOG_DEBUG, "UiTest_onScreenCopy: frame time %.3f ms, sleep %.3f ms", (double)elapsed_us / 1000.0, (double)sleep_us / 1000.0);
     if (elapsed_us < frame_interval_us) {
-        AGENT_OHOS_LOG(LOG_DEBUG, LOG_TAG, "elapsed_us < frame_interval_us, skip frame");
+        AGENT_OHOS_LOG(LOG_DEBUG, "elapsed_us < frame_interval_us, skip frame");
         return;
     }
     last_us = now_us;
