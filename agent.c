@@ -484,6 +484,15 @@ void screenPngCallback(char* data, int size) {
     png_image_free(&image);
 }
 
+void screenCallback(char* data, int size) {
+    if (strcmp(g_AgentConfig.cap_mode, CAP_MODE_PNG) == 0) {
+        // PNG CALLBACK
+        screenPngCallback(data, size);
+    } else {
+        screenJpegCallback(data, size);
+    }
+}
+
 static int processArguments(const int *argc, char *argv[]) {
     for (int i = 1; i < *argc;) {
         if (strcmp(argv[i], "-no_diff") == 0) {
@@ -548,7 +557,7 @@ RetCode UiTestExtension_OnRun() {
         return RETCODE_FAIL;
     }
     AGENT_OHOS_LOG(LOG_INFO, "%s: max fps: %d", __func__, g_AgentConfig.cap_fps);
-    if (UiTest_StartScreenCopy(screenJpegCallback, g_AgentConfig.cap_mode, g_AgentConfig.cap_fps) != 0) {
+    if (UiTest_StartScreenCopy(screenCallback, g_AgentConfig.cap_mode, g_AgentConfig.cap_fps) != 0) {
         AGENT_OHOS_LOG(LOG_FATAL, "%s: Start Screen Copy Failed", __func__);
         return RETCODE_FAIL;
     }
