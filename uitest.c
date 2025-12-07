@@ -2,6 +2,8 @@
 
 #include <errno.h>
 #include <window_manager/oh_display_manager.h>
+#include <window_manager/oh_display_capture.h>
+#include <multimedia/image_framework/image/pixelmap_native.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 
@@ -143,7 +145,58 @@ void UiTest_ScreenCopyPNGTask() {
 }
 
 void UiTest_ScreenCopyDMPUBTask() {
-    // TODO DMPUB
+    // 复用缓冲区
+    size_t rgb_buffer_size = UiTest_getScreenHeight() * UiTest_getScreenWidth() * 4;
+    char *rgb_buffer = malloc(rgb_buffer_size);
+    if (!rgb_buffer) {
+        AGENT_OHOS_LOG(LOG_ERROR, "%s: rgb_buffer malloc failed", __func__);
+        g_screenCopyDMPUBThreadRun = 0;
+        return;
+    }
+    AGENT_OHOS_LOG(LOG_INFO, "%s: Start", __func__);
+    const long frame_interval_us = 1000000 / g_fps;
+
+    while (g_screenCopyDMPUBThreadRun) {
+        struct timespec start, end;
+        clock_gettime(CLOCK_MONOTONIC, &start);
+        NativeDisplayManager_ErrorCode dmRet;
+
+        uint64_t displayId = 0;
+        dmRet = OH_NativeDisplayManager_GetDefaultDisplayId(&displayId);
+        if (dmRet != DISPLAY_MANAGER_OK) {
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: GetDefaultDisplayId failed %d", __func__, dmRet);
+            break;
+        }
+        OH_PixelmapNative *pixelMap = NULL;
+        uint32_t displayId32 = (uint32_t)displayId;
+        dmRet = OH_NativeDisplayManager_CaptureScreenPixelmap(displayId32, &pixelMap);
+        if (dmRet != DISPLAY_MANAGER_OK) {
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: CaptureScreenPixelmap failed %d", __func__, dmRet);
+            break;
+        }
+        Image_ErrorCode pmRet = OH_PixelmapNative_ReadPixels(pixelMap, (uint8_t*)rgb_buffer, &rgb_buffer_size);
+        if (pmRet != IMAGE_SUCCESS) {
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: ReadPixels failed %d", __func__, dmRet);
+            break;
+        }
+        AGENT_OHOS_LOG(LOG_DEBUG, "%s: Read screenshot: %zd bytes", __func__, rgb_buffer_size);
+        if (g_screenCopyCallback != NULL) {
+            g_screenCopyCallback(rgb_buffer, (int)rgb_buffer_size);
+        }
+        OH_PixelmapNative_Destroy(&pixelMap);
+
+        clock_gettime(CLOCK_MONOTONIC, &end);
+        long elapsed_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;
+        long sleep_us = frame_interval_us - elapsed_us;
+        AGENT_OHOS_LOG(LOG_DEBUG, "%s: frame time %.3f ms, sleep %.3f ms", __func__, (double)elapsed_us / 1000.0, (double)sleep_us / 1000.0);
+        if (sleep_us > 0) {
+            usleep(sleep_us);
+        }
+    }
+
+    AGENT_OHOS_LOG(LOG_INFO, "%s: Stop", __func__);
+    free(rgb_buffer);
+    g_screenCopyDMPUBThreadRun = 0;
 }
 
 int UiTest_StartScreenCopy(ScreenCopyCallback callback, char mode[16], int fps) {

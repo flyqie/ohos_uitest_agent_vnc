@@ -21,8 +21,12 @@ typedef struct {
     pthread_mutex_t backBufferFuncLock;
 } BufferManager;
 
+// PNG截屏, 调用UiTest 序列化 API, 适用性较好
 #define CAP_MODE_PNG "png"
+// Display Manager Public Api 截屏, 速度较快
 #define CAP_MODE_DMPUB "dmpub"
+// 默认截屏JPEG, 最古老
+#define CAP_MODE_DEFAULT "jpeg"
 typedef struct {
     int no_diff;
     char cap_mode[16];

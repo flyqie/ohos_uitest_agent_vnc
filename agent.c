@@ -91,6 +91,7 @@ static int release_vnc_buf(BufferManager *manager, int w1, int y1, int w2, int y
     pthread_rwlock_unlock(&manager->frontBufferLock);
     rfbMarkRectAsModified(manager->server, w1, y1, w2, y2);
     pthread_mutex_unlock(&manager->backBufferFuncLock);
+    AGENT_OHOS_LOG(LOG_DEBUG, "%s: MarkRectAsModified (%d,%d)-(%d,%d)", __func__, w1, y1, w2, y2);
     return 0;
 }
 
@@ -484,10 +485,98 @@ void screenPngCallback(char* data, int size) {
     png_image_free(&image);
 }
 
+// AI CODE
+void screenDMPUBCallback(char* data, int size) {
+    if (!g_BufferManager) return;
+
+    int screenW = g_BufferManager->server->width;
+    int screenH = g_BufferManager->server->height;
+
+    // 必须是 BGRA8888
+    if (size < screenW * screenH * 4) {
+        AGENT_OHOS_LOG(LOG_ERROR, "%s: Invalid BGRA frame size=%d", __func__, size);
+        return;
+    }
+
+    uint8_t* curr_frame = (uint8_t*)data; // 注意：不 malloc，直接使用调用者传入的数据
+
+    // 差分缓存
+    static uint8_t* last_frame = NULL;
+    static int last_w = 0, last_h = 0;
+
+    int need_full_update = g_AgentConfig.no_diff;
+
+    size_t frameSize = screenW * screenH * 4;
+
+    // 首次初始化或分辨率变化
+    if (!last_frame || last_w != screenW || last_h != screenH) {
+        if (last_frame) free(last_frame);
+        last_frame = (uint8_t*)calloc(1, frameSize);
+        last_w = screenW;
+        last_h = screenH;
+        need_full_update = 1;
+    }
+
+    int min_x = screenW, min_y = screenH, max_x = -1, max_y = -1;
+
+    if (!need_full_update) {
+        // 差分扫描（每像素 4 字节，BGRA 完全一致）
+        for (int y = 0; y < screenH; ++y) {
+            const uint8_t* row_curr = &curr_frame[y * screenW * 4];
+            const uint8_t* row_last = &last_frame[y * screenW * 4];
+
+            for (int x = 0; x < screenW; ++x) {
+                int idx = x * 4;
+
+                if (memcmp(row_curr + idx, row_last + idx, 4) != 0) {
+                    if (x < min_x) min_x = x;
+                    if (x > max_x) max_x = x;
+                    if (y < min_y) min_y = y;
+                    if (y > max_y) max_y = y;
+                }
+            }
+        }
+
+        // 没变化
+        if (max_x < 0) return;
+
+    } else {
+        // 强制全屏刷新
+        min_x = 0;
+        min_y = 0;
+        max_x = screenW - 1;
+        max_y = screenH - 1;
+    }
+
+    // 写入 VNC framebuffer（BGRA 无需转换）
+    unsigned char* fb = (unsigned char*)request_back_vnc_buf(g_BufferManager);
+    int fb_stride = screenW * 4;
+
+    for (int y = min_y; y <= max_y; ++y) {
+        memcpy(
+            &fb[y * fb_stride + min_x * 4],
+            &curr_frame[y * screenW * 4 + min_x * 4],
+            (max_x - min_x + 1) * 4
+        );
+    }
+
+    release_vnc_buf(
+        g_BufferManager,
+        min_x, min_y,
+        max_x + 1, max_y + 1
+    );
+
+    // 更新 last_frame
+    memcpy(last_frame, curr_frame, frameSize);
+}
+
 void screenCallback(char* data, int size) {
     if (strcmp(g_AgentConfig.cap_mode, CAP_MODE_PNG) == 0) {
         // PNG CALLBACK
         screenPngCallback(data, size);
+    }else if (strcmp(g_AgentConfig.cap_mode, CAP_MODE_DMPUB) == 0) {
+        // DMPUB CALLBACK
+        screenDMPUBCallback(data, size);
     } else {
         screenJpegCallback(data, size);
     }

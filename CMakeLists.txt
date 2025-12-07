@@ -32,6 +32,7 @@ target_link_libraries(agent PRIVATE
         hilog_ndk.z
         deviceinfo_ndk.z
         z
+        pixelmap
         native_display_manager
         ${LIBJPEG_LIB}
         ${LIBPNG_LIB}
