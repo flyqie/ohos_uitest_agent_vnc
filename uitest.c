@@ -8,7 +8,8 @@
 ScreenCopyCallback g_screenCopyCallback;
 
 int g_screenCopyPNGThreadRun = 0;
-int g_screenCopyMode = 0;
+int g_screenCopyDMPUBThreadRun = 0;
+char g_screenCopyMode[16] = {};
 int g_fps;
 
 int UiTest_getScreenWidth() {
@@ -141,17 +142,22 @@ void UiTest_ScreenCopyPNGTask() {
     g_screenCopyPNGThreadRun = 0;
 }
 
-int UiTest_StartScreenCopy(ScreenCopyCallback callback, int mode, int fps) {
+void UiTest_ScreenCopyDMPUBTask() {
+    // TODO DMPUB
+}
+
+int UiTest_StartScreenCopy(ScreenCopyCallback callback, char mode[16], int fps) {
     if (callback == NULL) {
         AGENT_OHOS_LOG(LOG_ERROR, "%s: callback is nullptr", __func__);
         return -1;
     }
     g_screenCopyCallback = callback;
-    g_screenCopyMode = mode;
     g_fps = fps;
+    snprintf(g_screenCopyMode, sizeof(g_screenCopyMode), "%s", mode);
 
-    if (mode == 1) {
+    if (strcmp(mode, CAP_MODE_PNG) == 0) {
         // PNG模式
+        AGENT_OHOS_LOG(LOG_INFO, "%s: Start PNG Screen Copy Task", __func__);
         if (g_screenCopyPNGThreadRun == 1) {
             AGENT_OHOS_LOG(LOG_ERROR, "%s: PNG Thread already running", __func__);
             return -2;
@@ -164,41 +170,60 @@ int UiTest_StartScreenCopy(ScreenCopyCallback callback, int mode, int fps) {
             return -3;
         }
         pthread_detach(thread);
-        return 0;
-    }
-    if (g_LowLevelFunctions.startCapture == NULL) {
-        AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions is nullptr", __func__);
-        return -1;
-    }
+    }else if (strcmp(mode, CAP_MODE_DMPUB) == 0) {
+        // Display Manager Public Api
+        if (g_screenCopyDMPUBThreadRun == 1) {
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: DMPUB Thread already running", __func__);
+            return -2;
+        }
+        g_screenCopyDMPUBThreadRun = 1;
+        pthread_t thread;
+        if (pthread_create(&thread, NULL, (void* (*)(void*))UiTest_ScreenCopyDMPUBTask, NULL) != 0) {
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: Create DMPUB Thread failed", __func__);
+            g_screenCopyDMPUBThreadRun = 0;
+            return -3;
+        }
+        pthread_detach(thread);
+    } else {
+        AGENT_OHOS_LOG(LOG_INFO, "%s: Start JPEG Screen Copy Task", __func__);
+        if (g_LowLevelFunctions.startCapture == NULL) {
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions is nullptr", __func__);
+            return -1;
+        }
 
-    struct Text name = { .data = "copyScreen" };
-    name.size = sizeof(name.data);
-    struct Text optJson = {};
-    if (g_LowLevelFunctions.startCapture(name, UiTest_onScreenCopy, optJson) == RETCODE_SUCCESS) {
-        return 0;
+        struct Text name = { .data = "copyScreen" };
+        name.size = sizeof(name.data);
+        struct Text optJson = {};
+        if (g_LowLevelFunctions.startCapture(name, UiTest_onScreenCopy, optJson) != RETCODE_SUCCESS) {
+            return -2;
+        }
     }
-    return -2;
+    return 0;
 }
 
 int UiTest_StopScreenCopy() {
-    if (g_screenCopyMode == 1) {
+    if (strcmp(g_screenCopyMode, CAP_MODE_PNG) == 0) {
+        AGENT_OHOS_LOG(LOG_INFO, "%s: Stop PNG Screen Copy Task", __func__);
         g_screenCopyPNGThreadRun = 0;
         sleep(2);
-        return 0;
-    }
+    }else if (strcmp(g_screenCopyMode, CAP_MODE_DMPUB) == 0) {
+        g_screenCopyDMPUBThreadRun = 0;
+        sleep(2);
+    } else {
+        AGENT_OHOS_LOG(LOG_INFO, "%s: Stop JPEG Screen Copy Task", __func__);
+        if (g_LowLevelFunctions.startCapture == NULL) {
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions is nullptr", __func__);
+            return -1;
+        }
 
-    if (g_LowLevelFunctions.startCapture == NULL) {
-        AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions is nullptr", __func__);
-        return -1;
+        g_screenCopyCallback = NULL;
+        struct Text name = { .data = "copyScreen" };
+        name.size = sizeof(name.data);
+        if (g_LowLevelFunctions.stopCapture(name) != RETCODE_SUCCESS) {
+            return -2;
+        }
     }
-
-    g_screenCopyCallback = NULL;
-    struct Text name = { .data = "copyScreen" };
-    name.size = sizeof(name.data);
-    if (g_LowLevelFunctions.stopCapture(name) == RETCODE_SUCCESS) {
-        return 0;
-    }
-    return -2;
+    return 0;
 }
 
 int UiTest_InjectionPtr(enum ActionStage stage, int x, int y) {
@@ -206,8 +231,8 @@ int UiTest_InjectionPtr(enum ActionStage stage, int x, int y) {
         AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions is nullptr", __func__);
         return -1;
     }
-    if (g_LowLevelFunctions.atomicTouch(stage, x, y) == RETCODE_SUCCESS) {
-        return 0;
+    if (g_LowLevelFunctions.atomicTouch(stage, x, y) != RETCODE_SUCCESS) {
+        return -2;
     }
-    return -2;
+    return 0;
 }

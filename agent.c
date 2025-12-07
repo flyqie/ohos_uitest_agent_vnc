@@ -485,26 +485,25 @@ void screenPngCallback(char* data, int size) {
 }
 
 static int processArguments(const int *argc, char *argv[]) {
-    if (!argc) {
-        return TRUE;
-    }
-
     for (int i = 1; i < *argc;) {
-        if (strcmp(argv[i], "-nodiff") == 0) {
-            AGENT_OHOS_LOG(LOG_INFO, "%s: -nodiff", __func__);
+        if (strcmp(argv[i], "-no_diff") == 0) {
+            AGENT_OHOS_LOG(LOG_INFO, "%s: -no_diff", __func__);
             g_AgentConfig.no_diff = 1;
-        }else if (strcmp(argv[i], "-pngcap") == 0) {
-            AGENT_OHOS_LOG(LOG_INFO, "%s: -pngcap", __func__);
-            g_AgentConfig.png_cap = 1;
-        }else if (strcmp(argv[i], "-agentdebug") == 0) {
-            AGENT_OHOS_LOG(LOG_INFO, "%s: -agentdebug", __func__);
+        }else if (strcmp(argv[i], "-agent_debug") == 0) {
+            AGENT_OHOS_LOG(LOG_INFO, "%s: -agent_debug", __func__);
             g_AgentConfig.agent_debug = 1;
-        } else if (strcmp(argv[i], "-capfps") == 0) {
-            AGENT_OHOS_LOG(LOG_INFO, "%s: -capfps", __func__);
+        } else if (strcmp(argv[i], "-cap_fps") == 0) {
+            AGENT_OHOS_LOG(LOG_INFO, "%s: -cap_fps", __func__);
             if (i + 1 >= *argc) {
                 return FALSE;
             }
             g_AgentConfig.cap_fps = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "-cap_mode") == 0) {
+            AGENT_OHOS_LOG(LOG_INFO, "%s: -cap_mode", __func__);
+            if (i + 1 >= *argc) {
+                return FALSE;
+            }
+            snprintf(g_AgentConfig.cap_mode, sizeof(g_AgentConfig.cap_mode), "%s", argv[++i]);
         } else {
             // 未知参数, 不处理, 可能是给libvncserver的参数
         }
@@ -549,13 +548,7 @@ RetCode UiTestExtension_OnRun() {
         return RETCODE_FAIL;
     }
     AGENT_OHOS_LOG(LOG_INFO, "%s: max fps: %d", __func__, g_AgentConfig.cap_fps);
-    int copy_ret;
-    if (g_AgentConfig.png_cap) {
-        copy_ret = UiTest_StartScreenCopy(screenPngCallback, 1, g_AgentConfig.cap_fps);
-    } else {
-        copy_ret = UiTest_StartScreenCopy(screenJpegCallback, 0, g_AgentConfig.cap_fps);
-    }
-    if (copy_ret != 0) {
+    if (UiTest_StartScreenCopy(screenJpegCallback, g_AgentConfig.cap_mode, g_AgentConfig.cap_fps) != 0) {
         AGENT_OHOS_LOG(LOG_FATAL, "%s: Start Screen Copy Failed", __func__);
         return RETCODE_FAIL;
     }

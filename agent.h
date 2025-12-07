@@ -21,9 +21,11 @@ typedef struct {
     pthread_mutex_t backBufferFuncLock;
 } BufferManager;
 
+#define CAP_MODE_PNG "png"
+#define CAP_MODE_DMPUB "dmpub"
 typedef struct {
     int no_diff;
-    int png_cap;
+    char cap_mode[16];
     int cap_fps;
     int agent_debug;
 } AgentConfig;
