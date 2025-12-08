@@ -200,7 +200,6 @@ void UiTest_ScreenCopyDMPUBTask() {
 }
 
 int UiTest_StartScreenCopy(ScreenCopyCallback callback, char mode[16], int fps) {
-    AGENT_OHOS_LOG(LOG_INFO,"WTF 1111 %d", g_screenCopyDMPUBThreadRun);
     if (callback == NULL) {
         AGENT_OHOS_LOG(LOG_ERROR, "%s: callback is nullptr", __func__);
         return -1;
