@@ -8,7 +8,6 @@
 struct UiTestPort g_UiTestPort;
 struct LowLevelFunctions g_LowLevelFunctions;
 BufferManager* g_BufferManager;
-
 AgentConfig g_AgentConfig = {};
 
 void AGENT_OHOS_LOG(LogLevel level, const char* fmt, ...) {
@@ -118,7 +117,6 @@ void key_event(rfbBool down, rfbKeySym key, rfbClientPtr cl) {
     if (down && ctrl_down && (key == XK_q || key == XK_Q)) {
         AGENT_OHOS_LOG(LOG_INFO, "%s: Ctrl+Q detected! Stop Agent...", __func__);
         stop_vnc_server(g_BufferManager);
-        return;
     }
 }
 
@@ -572,10 +570,8 @@ void screenDMPUBCallback(char* data, int size) {
 
 void screenCallback(char* data, int size) {
     if (strcmp(g_AgentConfig.cap_mode, CAP_MODE_PNG) == 0) {
-        // PNG CALLBACK
         screenPngCallback(data, size);
     }else if (strcmp(g_AgentConfig.cap_mode, CAP_MODE_DMPUB) == 0) {
-        // DMPUB CALLBACK
         screenDMPUBCallback(data, size);
     } else {
         screenJpegCallback(data, size);
@@ -586,20 +582,20 @@ static int processArguments(const int *argc, char *argv[]) {
     for (int i = 1; i < *argc;) {
         if (strcmp(argv[i], "-no_diff") == 0) {
             AGENT_OHOS_LOG(LOG_INFO, "%s: -no_diff", __func__);
-            g_AgentConfig.no_diff = 1;
+            g_AgentConfig.no_diff = true;
         }else if (strcmp(argv[i], "-agent_debug") == 0) {
             AGENT_OHOS_LOG(LOG_INFO, "%s: -agent_debug", __func__);
-            g_AgentConfig.agent_debug = 1;
+            g_AgentConfig.agent_debug = true;
         } else if (strcmp(argv[i], "-cap_fps") == 0) {
             AGENT_OHOS_LOG(LOG_INFO, "%s: -cap_fps", __func__);
             if (i + 1 >= *argc) {
-                return FALSE;
+                return false;
             }
             g_AgentConfig.cap_fps = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-cap_mode") == 0) {
             AGENT_OHOS_LOG(LOG_INFO, "%s: -cap_mode", __func__);
             if (i + 1 >= *argc) {
-                return FALSE;
+                return false;
             }
             snprintf(g_AgentConfig.cap_mode, sizeof(g_AgentConfig.cap_mode), "%s", argv[++i]);
         } else {
@@ -608,7 +604,7 @@ static int processArguments(const int *argc, char *argv[]) {
         i++;
     }
 
-    return TRUE;
+    return true;
 }
 
 // 入口函数
@@ -625,7 +621,7 @@ RetCode UiTestExtension_OnInit(struct UiTestPort port, size_t argc, char **argv)
     AGENT_OHOS_LOG(LOG_FATAL, "%s: Screen Size: %dx%d", __func__, screenW, screenH);
     setServerRfbLog();
     int _argc = (int)argc;
-    if (processArguments(&_argc, argv) == FALSE) {
+    if (!processArguments(&_argc, argv)) {
         AGENT_OHOS_LOG(LOG_FATAL, "%s: Process Arguments Failed", __func__);
         return RETCODE_FAIL;
     }
@@ -646,12 +642,12 @@ RetCode UiTestExtension_OnRun() {
         return RETCODE_FAIL;
     }
     AGENT_OHOS_LOG(LOG_INFO, "%s: max fps: %d", __func__, g_AgentConfig.cap_fps);
-    if (UiTest_StartScreenCopy(screenCallback, g_AgentConfig.cap_mode, g_AgentConfig.cap_fps) != 0) {
+    if (UiTest_StartScreenCopy(screenCallback, g_AgentConfig.cap_mode, g_AgentConfig.cap_fps) != RETCODE_SUCCESS) {
         AGENT_OHOS_LOG(LOG_FATAL, "%s: Start Screen Copy Failed", __func__);
         return RETCODE_FAIL;
     }
     run_vnc_server(g_BufferManager);
-    if (UiTest_StopScreenCopy() != 0) {
+    if (UiTest_StopScreenCopy() != RETCODE_SUCCESS) {
         AGENT_OHOS_LOG(LOG_FATAL, "%s: Stop Screen Copy Failed", __func__);
     }
     // 等待2秒确保vnc服务器彻底停止

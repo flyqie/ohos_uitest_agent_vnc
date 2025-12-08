@@ -9,15 +9,15 @@
 
 ScreenCopyCallback g_screenCopyCallback;
 
-int g_screenCopyPNGThreadRun = 0;
-int g_screenCopyDMPUBThreadRun = 0;
+bool g_screenCopyPNGThreadRun = 0;
+bool g_screenCopyDMPUBThreadRun = 0;
 char g_screenCopyMode[16] = {};
 int g_fps;
 
 int UiTest_getScreenWidth() {
     int32_t width;
     if (OH_NativeDisplayManager_GetDefaultDisplayWidth(&width) != DISPLAY_MANAGER_OK) {
-        return -2;
+        return RETCODE_FAIL;
     }
     return width;
 }
@@ -25,7 +25,7 @@ int UiTest_getScreenWidth() {
 int UiTest_getScreenHeight() {
     int32_t height;
     if (OH_NativeDisplayManager_GetDefaultDisplayHeight(&height) != DISPLAY_MANAGER_OK) {
-        return -2;
+        return RETCODE_FAIL;
     }
     return height;
 }
@@ -71,7 +71,7 @@ void UiTest_ScreenCopyPNGTask() {
     char *png_buffer = malloc(1024 * 1024 * 20);
     if (!png_buffer) {
         AGENT_OHOS_LOG(LOG_ERROR, "%s: png_buffer malloc failed", __func__);
-        g_screenCopyPNGThreadRun = 0;
+        g_screenCopyPNGThreadRun = false;
         return;
     }
 
@@ -141,7 +141,7 @@ void UiTest_ScreenCopyPNGTask() {
 
     AGENT_OHOS_LOG(LOG_INFO, "%s: Stop", __func__);
     free(png_buffer);
-    g_screenCopyPNGThreadRun = 0;
+    g_screenCopyPNGThreadRun = true;
 }
 
 void UiTest_ScreenCopyDMPUBTask() {
@@ -150,7 +150,7 @@ void UiTest_ScreenCopyDMPUBTask() {
     char *rgb_buffer = malloc(rgb_buffer_size);
     if (!rgb_buffer) {
         AGENT_OHOS_LOG(LOG_ERROR, "%s: rgb_buffer malloc failed", __func__);
-        g_screenCopyDMPUBThreadRun = 0;
+        g_screenCopyDMPUBThreadRun = false;
         return;
     }
     AGENT_OHOS_LOG(LOG_INFO, "%s: Start", __func__);
@@ -196,7 +196,7 @@ void UiTest_ScreenCopyDMPUBTask() {
 
     AGENT_OHOS_LOG(LOG_INFO, "%s: Stop", __func__);
     free(rgb_buffer);
-    g_screenCopyDMPUBThreadRun = 0;
+    g_screenCopyDMPUBThreadRun = false;
 }
 
 int UiTest_StartScreenCopy(ScreenCopyCallback callback, char mode[16], int fps) {
@@ -209,83 +209,85 @@ int UiTest_StartScreenCopy(ScreenCopyCallback callback, char mode[16], int fps) 
     snprintf(g_screenCopyMode, sizeof(g_screenCopyMode), "%s", mode);
 
     if (strcmp(mode, CAP_MODE_PNG) == 0) {
-        // PNG模式
         AGENT_OHOS_LOG(LOG_INFO, "%s: Start PNG Screen Copy Task", __func__);
-        if (g_screenCopyPNGThreadRun == 1) {
+        if (g_screenCopyPNGThreadRun) {
             AGENT_OHOS_LOG(LOG_ERROR, "%s: PNG Thread already running", __func__);
-            return -2;
+            return RETCODE_FAIL;
         }
-        g_screenCopyPNGThreadRun = 1;
+        g_screenCopyPNGThreadRun = true;
         pthread_t thread;
         if (pthread_create(&thread, NULL, (void* (*)(void*))UiTest_ScreenCopyPNGTask, NULL) != 0) {
             AGENT_OHOS_LOG(LOG_ERROR, "%s: Create PNG Thread failed", __func__);
-            g_screenCopyPNGThreadRun = 0;
-            return -3;
+            g_screenCopyPNGThreadRun = false;
+            return RETCODE_FAIL;
         }
         pthread_detach(thread);
     }else if (strcmp(mode, CAP_MODE_DMPUB) == 0) {
         // Display Manager Public Api
-        if (g_screenCopyDMPUBThreadRun == 1) {
+        if (g_screenCopyDMPUBThreadRun) {
             AGENT_OHOS_LOG(LOG_ERROR, "%s: DMPUB Thread already running", __func__);
-            return -2;
+            return RETCODE_FAIL;
         }
-        g_screenCopyDMPUBThreadRun = 1;
+        g_screenCopyDMPUBThreadRun = true;
         pthread_t thread;
         if (pthread_create(&thread, NULL, (void* (*)(void*))UiTest_ScreenCopyDMPUBTask, NULL) != 0) {
             AGENT_OHOS_LOG(LOG_ERROR, "%s: Create DMPUB Thread failed", __func__);
-            g_screenCopyDMPUBThreadRun = 0;
-            return -3;
+            g_screenCopyDMPUBThreadRun = false;
+            return RETCODE_FAIL;
         }
         pthread_detach(thread);
     } else {
         AGENT_OHOS_LOG(LOG_INFO, "%s: Start JPEG Screen Copy Task", __func__);
         if (g_LowLevelFunctions.startCapture == NULL) {
             AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions is nullptr", __func__);
-            return -1;
+            return RETCODE_FAIL;
         }
 
         struct Text name = { .data = "copyScreen" };
         name.size = sizeof(name.data);
         struct Text optJson = {};
         if (g_LowLevelFunctions.startCapture(name, UiTest_onScreenCopy, optJson) != RETCODE_SUCCESS) {
-            return -2;
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions.startCapture failed", __func__);
+            return RETCODE_FAIL;
         }
     }
-    return 0;
+    return RETCODE_SUCCESS;
 }
 
 int UiTest_StopScreenCopy() {
     if (strcmp(g_screenCopyMode, CAP_MODE_PNG) == 0) {
         AGENT_OHOS_LOG(LOG_INFO, "%s: Stop PNG Screen Copy Task", __func__);
-        g_screenCopyPNGThreadRun = 0;
+        g_screenCopyPNGThreadRun = false;
         sleep(2);
     }else if (strcmp(g_screenCopyMode, CAP_MODE_DMPUB) == 0) {
-        g_screenCopyDMPUBThreadRun = 0;
+        g_screenCopyDMPUBThreadRun = false;
         sleep(2);
     } else {
         AGENT_OHOS_LOG(LOG_INFO, "%s: Stop JPEG Screen Copy Task", __func__);
         if (g_LowLevelFunctions.startCapture == NULL) {
             AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions is nullptr", __func__);
-            return -1;
+            return RETCODE_FAIL;
         }
 
         g_screenCopyCallback = NULL;
         struct Text name = { .data = "copyScreen" };
         name.size = sizeof(name.data);
         if (g_LowLevelFunctions.stopCapture(name) != RETCODE_SUCCESS) {
-            return -2;
+            AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions.stopCapture failed", __func__);
+            return RETCODE_FAIL;
         }
     }
-    return 0;
+    return RETCODE_SUCCESS;
 }
 
 int UiTest_InjectionPtr(enum ActionStage stage, int x, int y) {
     if (g_LowLevelFunctions.atomicTouch == NULL) {
         AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions is nullptr", __func__);
-        return -1;
+        return RETCODE_FAIL;
     }
     if (g_LowLevelFunctions.atomicTouch(stage, x, y) != RETCODE_SUCCESS) {
-        return -2;
+        AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions.atomicTouch failed", __func__);
+        return RETCODE_FAIL;
     }
-    return 0;
+    return RETCODE_SUCCESS;
 }

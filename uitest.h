@@ -4,9 +4,7 @@
 #include "agent.h"
 
 typedef void (*ScreenCopyCallback)(char* data, int size);
-
 extern ScreenCopyCallback g_screenCopyCallback;
-
 enum ActionStage : uint8_t {
     ActionStage_NONE = 0,
     ActionStage_DOWN = 1,
