@@ -39,5 +39,3 @@ target_link_libraries(agent PRIVATE
     ${LIBVNCSERVER_LIB}
 )
 
-#target_compile_options(agent PRIVATE -ffunction-sections -fdata-sections)
-#set_target_properties(agent PROPERTIES LINK_FLAGS "-Wl,--gc-sections")

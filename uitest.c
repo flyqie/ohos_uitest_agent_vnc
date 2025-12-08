@@ -5,12 +5,12 @@
 #include <window_manager/oh_display_capture.h>
 #include <multimedia/image_framework/image/pixelmap_native.h>
 #include <fcntl.h>
+#include <stdatomic.h>
 #include <sys/stat.h>
 
 ScreenCopyCallback g_screenCopyCallback;
-
-bool g_screenCopyPNGThreadRun = 0;
-bool g_screenCopyDMPUBThreadRun = 0;
+bool g_screenCopyDMPUBThreadRun;
+bool g_screenCopyPNGThreadRun;
 char g_screenCopyMode[16] = {};
 int g_fps;
 
@@ -57,7 +57,7 @@ void UiTest_onScreenCopy(struct Text bytes) {
 
 static void UiTest_CreateDriver() {
     struct Text input = {.data = "{\"api\":\"Driver.create\",\"this\":null,\"args\":[]}"};
-    input.size = sizeof(input.data);
+    input.size = strlen(input.data);
     uint8_t outputData[2048] = {};
     size_t outputSize;
     struct ReceiveBuffer output = { outputData, sizeof(outputData), &outputSize };
@@ -94,7 +94,7 @@ void UiTest_ScreenCopyPNGTask() {
                  "{\"api\":\"Driver.screenCapture\",\"this\":\"Driver#0\",\"args\":[%d,{\"left\":%d,\"right\":%d,\"top\":%d,\"bottom\":%d}]}",
                  fd, 0, UiTest_getScreenWidth(), 0, UiTest_getScreenHeight());
 
-        struct Text input = {.data = buffer, .size = sizeof(buffer)};
+        struct Text input = {.data = buffer, .size = strlen(buffer)};
         uint8_t outputData[2048] = {};
         size_t outputSize;
         struct ReceiveBuffer output = { outputData, sizeof(outputData), &outputSize };
@@ -141,7 +141,7 @@ void UiTest_ScreenCopyPNGTask() {
 
     AGENT_OHOS_LOG(LOG_INFO, "%s: Stop", __func__);
     free(png_buffer);
-    g_screenCopyPNGThreadRun = true;
+    g_screenCopyPNGThreadRun = false;
 }
 
 void UiTest_ScreenCopyDMPUBTask() {
@@ -200,6 +200,7 @@ void UiTest_ScreenCopyDMPUBTask() {
 }
 
 int UiTest_StartScreenCopy(ScreenCopyCallback callback, char mode[16], int fps) {
+    AGENT_OHOS_LOG(LOG_INFO,"WTF 1111 %d", g_screenCopyDMPUBThreadRun);
     if (callback == NULL) {
         AGENT_OHOS_LOG(LOG_ERROR, "%s: callback is nullptr", __func__);
         return -1;
@@ -209,11 +210,11 @@ int UiTest_StartScreenCopy(ScreenCopyCallback callback, char mode[16], int fps) 
     snprintf(g_screenCopyMode, sizeof(g_screenCopyMode), "%s", mode);
 
     if (strcmp(mode, CAP_MODE_PNG) == 0) {
-        AGENT_OHOS_LOG(LOG_INFO, "%s: Start PNG Screen Copy Task", __func__);
         if (g_screenCopyPNGThreadRun) {
             AGENT_OHOS_LOG(LOG_ERROR, "%s: PNG Thread already running", __func__);
             return RETCODE_FAIL;
         }
+        AGENT_OHOS_LOG(LOG_INFO, "%s: Start PNG Screen Copy Task", __func__);
         g_screenCopyPNGThreadRun = true;
         pthread_t thread;
         if (pthread_create(&thread, NULL, (void* (*)(void*))UiTest_ScreenCopyPNGTask, NULL) != 0) {
@@ -223,11 +224,11 @@ int UiTest_StartScreenCopy(ScreenCopyCallback callback, char mode[16], int fps) 
         }
         pthread_detach(thread);
     }else if (strcmp(mode, CAP_MODE_DMPUB) == 0) {
-        // Display Manager Public Api
         if (g_screenCopyDMPUBThreadRun) {
             AGENT_OHOS_LOG(LOG_ERROR, "%s: DMPUB Thread already running", __func__);
             return RETCODE_FAIL;
         }
+        AGENT_OHOS_LOG(LOG_INFO, "%s: Start DMPUB Screen Copy Task", __func__);
         g_screenCopyDMPUBThreadRun = true;
         pthread_t thread;
         if (pthread_create(&thread, NULL, (void* (*)(void*))UiTest_ScreenCopyDMPUBTask, NULL) != 0) {
@@ -244,7 +245,7 @@ int UiTest_StartScreenCopy(ScreenCopyCallback callback, char mode[16], int fps) 
         }
 
         struct Text name = { .data = "copyScreen" };
-        name.size = sizeof(name.data);
+        name.size = strlen(name.data);
         struct Text optJson = {};
         if (g_LowLevelFunctions.startCapture(name, UiTest_onScreenCopy, optJson) != RETCODE_SUCCESS) {
             AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions.startCapture failed", __func__);
@@ -271,7 +272,7 @@ int UiTest_StopScreenCopy() {
 
         g_screenCopyCallback = NULL;
         struct Text name = { .data = "copyScreen" };
-        name.size = sizeof(name.data);
+        name.size = strlen(name.data);
         if (g_LowLevelFunctions.stopCapture(name) != RETCODE_SUCCESS) {
             AGENT_OHOS_LOG(LOG_ERROR, "%s: g_LowLevelFunctions.stopCapture failed", __func__);
             return RETCODE_FAIL;
