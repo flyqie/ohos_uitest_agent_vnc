@@ -618,7 +618,7 @@ RetCode UiTestExtension_OnInit(struct UiTestPort port, size_t argc, char **argv)
         AGENT_OHOS_LOG(LOG_FATAL, "%s: Get Screen Size Failed", __func__);
         return RETCODE_FAIL;
     }
-    AGENT_OHOS_LOG(LOG_FATAL, "%s: Screen Size: %dx%d", __func__, screenW, screenH);
+    AGENT_OHOS_LOG(LOG_INFO, "%s: Screen Size: %dx%d", __func__, screenW, screenH);
     setServerRfbLog();
     int _argc = (int)argc;
     if (!processArguments(&_argc, argv)) {
